@@ -1,7 +1,7 @@
 from enum import Enum, IntEnum
 import math
-import matplotlib.pyplot as plt
 import numpy as np
+from scipy.io.wavfile import write
 
 class freq(Enum):
     C0 = 16.35
@@ -113,7 +113,7 @@ class freq(Enum):
     As8 = 29.14*256
     B8 = 30.87*256
 
-midi = [(440*(2**(1/12))**(x-69)) for x in range(128)]
+midi = lambda x : (440*(2**(1/12))**(x-69))
 
 class length(IntEnum):
     sixtyforth = 1
@@ -125,45 +125,26 @@ class length(IntEnum):
     whole = 64
 
 class waveforms(Enum):
-    sin = lambda t, freq, amp: math.sin(t*2*math.pi*freq)*amp
-    cos = lambda t, freq, amp: math.cos(t*2*math.pi*freq)*amp
-    square = lambda t, freq, amp: ((-1)**int(2*freq*t))*amp
-    triangle = lambda t, freq, amp: (2*amp)/math.pi*math.asin(math.sin((2*math.pi)/(1/freq)*t))
-    sawtooth = lambda t, freq , amp: (((2*math.atan(math.tan((2*math.pi*t*freq)/2)))/math.pi)*amp)
+    sin = lambda t, freq, amp: np.sin(t*2*np.pi*freq)*amp
+    cos = lambda t, freq, amp: np.cos(t*2*np.pi*freq)*amp
+    square = lambda t, freq, amp: ((-1)**np.int64(2*freq*t))*amp
+    triangle = lambda t, freq, amp: (2*amp)/np.pi*np.arcsin(np.sin((2*np.pi)/(1/freq)*t))
+    sawtooth = lambda t, freq , amp: (((2*np.arctan(np.tan((2*np.pi*t*freq)/2)))/np.pi)*amp)
 
 class note:
-    def __init__(self, pitch: int, length: length):
-        """
-a class for a note
-
-Attributes
-----------
-
-pitch : int
-    the midi pitch of the note
-length : length
-    the length of the note
-        """
+    def __init__(self, pitch):
         self.pitch = pitch
-        self.length = length
-        self.freq = midi[pitch]
+        self.freq = midi(pitch)
 
 class rest:
-    def __init__(self, length: length):
-        """
-a class for a rest
-
-Attributes
-----------
-length : length
-    the length of the rest
-        """
+    def __init__(self, length):
         self.length = length
 
 class chord:
-    def __init__(self):
+    def __init__(self, length: length):
         """a class representing a chord"""
         self.notes = []
+        self.length = length
         pass
     
     def add_note(self, note: note):
@@ -182,7 +163,7 @@ a class representing a musical score to be used in a score
 
     def add_chord(self, chord: chord):
         """add a note to the voice"""
-        self.chords.append(note)
+        self.chords.append(chord)
 
 class score:
     def __init__(self, bpm: int):
@@ -200,3 +181,54 @@ bpm : int
     def add_voice(self, voice: voice):
         """add a voice to the score"""
         self.voices.append(voice)
+
+    def convert(self,samplerate):
+        wave = np.array([])
+        i = 0
+        for voc in self.voices:
+            vocwav = np.array([])
+            for chd in voc.chords:
+                if type(chd) == type(chord(1)):
+                    chdwav = np.array([np.float64(0)]*int(samplerate*60/self.bpm*chd.length/16))
+                    nts = 0
+                    for nte in chd.notes:
+                        wav = voc.wave(np.arange(int(samplerate*60/self.bpm*chd.length/16))/samplerate,nte.freq,voc.volume)
+                        chdwav += wav
+                        nts += 1
+                    chdwav /= nts
+                elif type(chd) == type(rest()):
+                    chdwav = np.array([0]*int(samplerate*60/self.bpm*chd.length/16))
+                vocwav = np.concatenate((vocwav, chdwav))
+            if i == 0:
+                wave = vocwav.copy()
+            else:
+                wave = np.stack((wave, vocwav))
+            i += 1
+        if i > 1:
+            wav = np.array([0]*len(wave))
+            i = 0
+            for tick in wave:
+                print(tick)
+                wav.put(tick.sum()/len(tick),i)
+                i+=1
+            return wav
+        else:
+            return wave
+notes = [note(60),note(67),note(77),note(84)]
+chords = [chord(16) for i in range(5)]
+voices = [voice(1,waveforms.square)]
+scr = score(120)
+
+for i in range(len(chords)):
+    for j in range(min(i+1,4)):
+        print(j)
+        chords[i].add_note(notes[j])
+
+for chd in chords:
+    voices[0].add_chord(chd)
+scr.add_voice(voices[0])
+wave = scr.convert(44100)
+print(wave)
+print(len(wave))
+scaled = np.int16(wave / np.max(np.abs(wave)) * 32767)
+write('test.wav', 44100, scaled)
