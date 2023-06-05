@@ -1,8 +1,7 @@
 from enum import Enum, IntEnum
-import math
 import numpy as np
 from scipy.io.wavfile import write
-
+import re
 class freq(Enum):
     C0 = 16.35
     Cs0 = 17.32
@@ -116,7 +115,7 @@ class freq(Enum):
 midi = lambda x : (440*(2**(1/12))**(x-69))
 
 class length(IntEnum):
-    sixtyforth = 1
+    sixtyfourth = 1
     thirtysecond = 2
     sixteenth = 4
     eighth = 8
@@ -196,7 +195,7 @@ bpm : int
                         chdwav += wav
                         nts += 1
                     chdwav /= nts
-                elif type(chd) == type(rest()):
+                elif type(chd) == type(rest(1)):
                     chdwav = np.array([0]*int(samplerate*60/self.bpm*chd.length/16))
                 vocwav = np.concatenate((vocwav, chdwav))
             if i == 0:
@@ -214,21 +213,81 @@ bpm : int
             return wav
         else:
             return wave
-notes = [note(60),note(67),note(77),note(84)]
-chords = [chord(16) for i in range(5)]
-voices = [voice(1,waveforms.square)]
-scr = score(120)
+    
+    def export2wav(self, path, samplerate):
+        wave = self.convert(samplerate)
+        scaled = np.int16(wave / np.max(np.abs(wave)) * 32767)
+        write(path, samplerate, scaled)
 
-for i in range(len(chords)):
-    for j in range(min(i+1,4)):
-        print(j)
-        chords[i].add_note(notes[j])
 
-for chd in chords:
-    voices[0].add_chord(chd)
-scr.add_voice(voices[0])
-wave = scr.convert(44100)
-print(wave)
-print(len(wave))
-scaled = np.int16(wave / np.max(np.abs(wave)) * 32767)
-write('test.wav', 44100, scaled)
+
+def xmlparser(f):
+    stack = [("xml",[])]
+    scr = score(120)
+    for line in f.readlines():
+        line = line.strip()
+        inline = re.fullmatch("<[^<>\/]+>[^<]+<\/[^<>\/]+>", line)
+        opentag = re.fullmatch("<[^<>\/]+>", line)
+        closetag = re.fullmatch("<\/[^>]+>", line)
+        chd = {"length":0}
+        ntes = []
+        nte = {"pitch":0}
+        rst = {"length":0}
+        if line.startswith("<?"):
+            continue
+        if inline:
+            tag = re.match("<[^<>\/]+>", line)
+            content = line[tag.end(0):-(tag.end(0)+1)]
+            stack[-1][1].append((tag.group(0)[1:-1],content))
+            if tag.group(0)[1:-1].startswith("durationType"):
+                match content:
+                    case "64th":
+                        lnt = length.sixtyfourth
+                    case "32nd":
+                        lnt = length.thirtysecond
+                    case "16th":
+                        lnt = length.sixteenth
+                    case "eighth":
+                        lnt = length.eighth
+                    case "quarter":
+                        lnt = length.quarter
+                    case "half":
+                        lnt = length.half
+                    case "whole":
+                        lnt = length.whole
+                    case _:
+                        lnt = 0
+                chd["length"] = lnt
+                rst["length"] = lnt
+            elif tag.group(0)[1:-1].startswith("pitch"):
+                try:
+                    nte["pitch"] = float(content)
+                except:
+                    nte["pitch"] = 69
+        if opentag:
+            stack.append((line[1:-1],[]))
+            if line[1:-1].startswith("Staff") and not stack[-1][0].startswith("Part"):
+                scr.add_voice(voice(1,waveforms.sin))
+            elif line[1:-1].startswith("Chord"):
+                chd = {"length":0}
+                ntes = []
+            elif line[1:-1].startswith("Note"):
+                nte = {"pitch":0}
+            elif line[1:-1].startswith("Rest"):
+                rst = {"length":0}
+        if closetag:
+            if line[2:-1].startswith("Chord"):
+                chd = chord(chd["length"])
+                for n in ntes:
+                    chd.add_note(note(n["pitch"]))
+                scr.voices[-1].add_chord(chord)
+            elif line[2:-1].startswith("Note"):
+                ntes.append(note(nte["pitch"]))
+            elif line[2:-1].startswith("Rest"):
+                scr.voices[-1].add_chord(rest(rst["length"]))
+            stack[-2][1].append(stack.pop())
+    return scr
+
+with open("test.mscx") as f:
+    tree = xmlparser(f)
+print(len(tree.convert(44100)))
