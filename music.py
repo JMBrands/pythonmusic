@@ -207,7 +207,8 @@ bpm : int
             i += 1
         if i > 1:
             print("averaging")
-            wav = np.array(list(map(lambda i:i.sum()/len(i),list(wave))))
+            avg = lambda i:i.sum()/len(i)
+            wav  = avg(wave)
             return wav
         else:
             return wave
