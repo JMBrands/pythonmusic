@@ -301,7 +301,7 @@ def xmlparser(f):
             try:
                 stack[-2][1].append(stack.pop())
             except:
-                print(stack)
+                pass
             # print(ntes)
     # nte = note(69)
     # chd = chord(16)
