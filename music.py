@@ -2,6 +2,7 @@ from enum import Enum, IntEnum
 import numpy as np
 from scipy.io.wavfile import write
 import re
+import matplotlib.pyplot as plt
 class freq(Enum):
     C0 = 16.35
     Cs0 = 17.32
@@ -196,43 +197,42 @@ bpm : int
                         nts += 1
                     chdwav /= nts
                 elif type(chd) == type(rest(1)):
-                    chdwav = np.array([0]*int(samplerate*60/self.bpm*chd.length/16))
+                    chdwav = np.arange(int(samplerate*60/self.bpm*chd.length/16))*np.float64(0)
                 vocwav = np.concatenate((vocwav, chdwav))
             if i == 0:
                 wave = vocwav.copy()
             else:
-                wave = np.stack((wave, vocwav))
+                print(len(wave),len(vocwav))
+                wave = np.stack((wave[:min(len(vocwav),len(wave))], vocwav[:min(len(vocwav),len(wave))]), axis=1)
             i += 1
         if i > 1:
-            wav = np.array([0]*len(wave))
-            i = 0
-            for tick in wave:
-                print(tick)
-                wav.put(tick.sum()/len(tick),i)
-                i+=1
+            print("averaging")
+            wav = np.array(list(map(lambda i:i.sum()/len(i),list(wave))))
             return wav
         else:
             return wave
     
     def export2wav(self, path, samplerate):
         wave = self.convert(samplerate)
+        print("scaling")
         scaled = np.int16(wave / np.max(np.abs(wave)) * 32767)
+        print("exporting")
         write(path, samplerate, scaled)
 
 
 
 def xmlparser(f):
     stack = [("xml",[])]
-    scr = score(120)
+    scr = score(320)
+    ntes = []
+    chd = chord(0)
+    nte = {"pitch":0}
+    rst = {"length":0}
     for line in f.readlines():
         line = line.strip()
         inline = re.fullmatch("<[^<>\/]+>[^<]+<\/[^<>\/]+>", line)
         opentag = re.fullmatch("<[^<>\/]+>", line)
         closetag = re.fullmatch("<\/[^>]+>", line)
-        chd = {"length":0}
-        ntes = []
-        nte = {"pitch":0}
-        rst = {"length":0}
         if line.startswith("<?"):
             continue
         if inline:
@@ -257,37 +257,68 @@ def xmlparser(f):
                         lnt = length.whole
                     case _:
                         lnt = 0
-                chd["length"] = lnt
-                rst["length"] = lnt
+                chd.length = lnt
+                rst.length = lnt
+                # print(f"set length to {chd.length}")
             elif tag.group(0)[1:-1].startswith("pitch"):
                 try:
                     nte["pitch"] = float(content)
                 except:
                     nte["pitch"] = 69
+                # print(f"set pitch to {nte['pitch']}")
         if opentag:
             stack.append((line[1:-1],[]))
             if line[1:-1].startswith("Staff") and not stack[-1][0].startswith("Part"):
+                # print("opened staff")
                 scr.add_voice(voice(1,waveforms.sin))
             elif line[1:-1].startswith("Chord"):
-                chd = {"length":0}
+                # print("opened chord")
+                chd = chord(0)
                 ntes = []
             elif line[1:-1].startswith("Note"):
+                # print("opened note")
                 nte = {"pitch":0}
             elif line[1:-1].startswith("Rest"):
-                rst = {"length":0}
+                # print("opened rest")
+                rst = rest(0)
         if closetag:
             if line[2:-1].startswith("Chord"):
-                chd = chord(chd["length"])
+                # print("closed chord")
+                # print(ntes)
                 for n in ntes:
-                    chd.add_note(note(n["pitch"]))
-                scr.voices[-1].add_chord(chord)
+                    # print("added note")
+                    chd.add_note(n)
+                    # print(chd.notes)
+                scr.voices[-1].add_chord(chd)
             elif line[2:-1].startswith("Note"):
-                ntes.append(note(nte["pitch"]))
+                nte = note(nte["pitch"])
+                # print(nte)
+                ntes.append(nte)
             elif line[2:-1].startswith("Rest"):
-                scr.voices[-1].add_chord(rest(rst["length"]))
-            stack[-2][1].append(stack.pop())
+                # print("closed rest")
+                scr.voices[-1].add_chord(rst)
+            try:
+                stack[-2][1].append(stack.pop())
+            except:
+                print(stack)
+            # print(ntes)
+    # nte = note(69)
+    # chd = chord(16)
+    # chd.add_note(nte)
+    # for i in range(1):
+    #     for vc in scr.voices:
+    #         vc.add_chord(chd)
     return scr
 
-with open("test.mscx") as f:
+with open("symph5/symph5.mscx") as f:
     tree = xmlparser(f)
-print(len(tree.convert(44100)))
+# print(tree.convert(44100))
+tree.export2wav("symh5.wav",44100)
+# for v in tree.voices:
+#     for c in v.chords:
+#         print(c.length)
+#         if type(c) == chord:
+#             for n in c.notes:
+#                 print(n)
+#         else:
+#             print("rest")
