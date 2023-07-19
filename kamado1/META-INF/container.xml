@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<container>
+  <rootfiles>
+    <rootfile full-path="score_style.mss"/>
+    <rootfile full-path="kamado.mscx"/>
+    <rootfile full-path="Excerpts/Violin 1/Violin 1.mss"/>
+    <rootfile full-path="Excerpts/Violin 1/Violin 1.mscx"/>
+    <rootfile full-path="Excerpts/Violin 2/Violin 2.mss"/>
+    <rootfile full-path="Excerpts/Violin 2/Violin 2.mscx"/>
+    <rootfile full-path="Excerpts/Violoncello/Violoncello.mss"/>
+    <rootfile full-path="Excerpts/Violoncello/Violoncello.mscx"/>
+    <rootfile full-path="Excerpts/Violoncello 1/Violoncello 1.mss"/>
+    <rootfile full-path="Excerpts/Violoncello 1/Violoncello 1.mscx"/>
+    <rootfile full-path="Excerpts/Violoncello 2/Violoncello 2.mss"/>
+    <rootfile full-path="Excerpts/Violoncello 2/Violoncello 2.mscx"/>
+    <rootfile full-path="Excerpts/Violoncello 3/Violoncello 3.mss"/>
+    <rootfile full-path="Excerpts/Violoncello 3/Violoncello 3.mscx"/>
+    <rootfile full-path="Thumbnails/thumbnail.png"/>
+    <rootfile full-path="audiosettings.json"/>
+    <rootfile full-path="viewsettings.json"/>
+    <rootfile full-path="Excerpts/Violin 1/viewsettings.json"/>
+    <rootfile full-path="Excerpts/Violin 2/viewsettings.json"/>
+    <rootfile full-path="Excerpts/Violoncello/viewsettings.json"/>
+    <rootfile full-path="Excerpts/Violoncello 1/viewsettings.json"/>
+    <rootfile full-path="Excerpts/Violoncello 2/viewsettings.json"/>
+    <rootfile full-path="Excerpts/Violoncello 3/viewsettings.json"/>
+    </rootfiles>
+  </container>

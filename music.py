@@ -3,6 +3,7 @@ import numpy as np
 from scipy.io.wavfile import write
 import re
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 class freq(Enum):
     C0 = 16.35
     Cs0 = 17.32
@@ -184,40 +185,35 @@ bpm : int
 
     def convert(self,samplerate):
         wave = np.array([])
+        waves = []
         i = 0
         for voc in self.voices:
             vocwav = np.array([])
-            for chd in voc.chords:
+            for chd in tqdm(voc.chords, f"Generating waves for voice {i}"):
+                chdwav = np.array([np.float64(0) for i in range(969*chd.length)])
                 if type(chd) == type(chord(1)):
-                    chdwav = np.array([np.float64(0)]*int(samplerate*60/self.bpm*chd.length/16))
                     nts = 0
                     for nte in chd.notes:
-                        wav = voc.wave(np.arange(int(samplerate*60/self.bpm*chd.length/16))/samplerate,nte.freq,voc.volume)
+                        wav = voc.wave(np.arange(len(chdwav))/samplerate,nte.freq,voc.volume)
                         chdwav += wav
                         nts += 1
                     chdwav /= nts
-                elif type(chd) == type(rest(1)):
-                    chdwav = np.arange(int(samplerate*60/self.bpm*chd.length/16))*np.float64(0)
                 vocwav = np.concatenate((vocwav, chdwav))
-            if i == 0:
+            if i != len(self.voices)-1:
                 wave = vocwav.copy()
+                waves.append(wave)
             else:
-                print(len(wave),len(vocwav))
-                wave = np.stack((wave[:min(len(vocwav),len(wave))], vocwav[:min(len(vocwav),len(wave))]), axis=1)
+                wave = np.stack([waves[i][:min([len(waves[j]) for j in range(len(waves))])] for i in range(len(waves))], axis=1)
             i += 1
         if i > 1:
-            print("averaging")
-            avg = lambda i:i.sum()/len(i)
-            wav  = avg(wave)
+            wav  = np.array([wave[j].sum()/i for j in tqdm(range(len(wave)),"averaging")])
             return wav
         else:
             return wave
     
     def export2wav(self, path, samplerate):
         wave = self.convert(samplerate)
-        print("scaling")
         scaled = np.int16(wave / np.max(np.abs(wave)) * 32767)
-        print("exporting")
         write(path, samplerate, scaled)
 
 
@@ -228,8 +224,8 @@ def xmlparser(f):
     ntes = []
     chd = chord(0)
     nte = {"pitch":0}
-    rst = {"length":0}
-    for line in f.readlines():
+    rst = rest(0)
+    for line in tqdm(f.readlines(),"Parsing Lines"):
         line = line.strip()
         inline = re.fullmatch("<[^<>\/]+>[^<]+<\/[^<>\/]+>", line)
         opentag = re.fullmatch("<[^<>\/]+>", line)
@@ -311,15 +307,28 @@ def xmlparser(f):
     #         vc.add_chord(chd)
     return scr
 
-with open("symph5/symph5.mscx") as f:
-    tree = xmlparser(f)
-# print(tree.convert(44100))
-tree.export2wav("symh5.wav",44100)
-# for v in tree.voices:
-#     for c in v.chords:
-#         print(c.length)
-#         if type(c) == chord:
-#             for n in c.notes:
-#                 print(n)
-#         else:
-#             print("rest")
+import sys, getopt
+
+def main(argv):
+    inpath = ""
+    outpath = ""
+    samplerate = 44100
+
+    try:
+        opts, args = getopt.getopt(argv,"i:o:s:",["ifile=","ofile=","samplerate="])
+    except getopt.GetoptError:
+        print ('test.py -i <inputfile> -o <outputfile> [-s <sampelrate>]')
+        sys.exit(2)
+    for opt, arg in opts:
+        if opt in ("-i", "--ifile"):
+            inpath = arg
+        elif opt in ("-o", "--ofile"):
+            outpath = arg
+        elif opt in ("-s", "--samplerate"):
+            samplerate = int(arg)
+    with open(inpath) as f:
+        tree = xmlparser(f)
+    tree.export2wav(outpath,samplerate)
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
